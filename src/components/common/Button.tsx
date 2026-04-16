@@ -7,6 +7,7 @@ import {
   ViewStyle,
   TextStyle,
 } from 'react-native'
+import {useTheme} from '../../theme'
 
 interface ButtonProps {
   title: string
@@ -27,35 +28,63 @@ const Button: React.FC<ButtonProps> = ({
   style,
   textStyle,
 }) => {
-  const buttonStyles = [
-    styles.button,
-    variant === 'primary' && styles.primary,
-    variant === 'secondary' && styles.secondary,
-    variant === 'ghost' && styles.ghost,
-    disabled && styles.disabled,
-    style,
-  ]
+  const {colors, borderRadius: radii, isDark} = useTheme()
 
-  const textStyles = [
-    styles.text,
-    variant === 'primary' && styles.primaryText,
-    variant === 'secondary' && styles.secondaryText,
-    variant === 'ghost' && styles.ghostText,
-    textStyle,
-  ]
+  const getBackgroundColor = () => {
+    if (disabled) return colors.disabled
+    switch (variant) {
+      case 'primary':
+        return colors.primary
+      case 'secondary':
+        return colors.surfaceSecondary
+      case 'ghost':
+        return 'transparent'
+    }
+  }
+
+  const getTextColor = () => {
+    if (disabled) return colors.textTertiary
+    switch (variant) {
+      case 'primary':
+        return colors.textInverse
+      case 'secondary':
+        return colors.text
+      case 'ghost':
+        return colors.primary
+    }
+  }
+
+  const getBorderColor = () => {
+    if (variant === 'secondary') return colors.border
+    return 'transparent'
+  }
 
   return (
     <TouchableOpacity
-      style={buttonStyles}
+      style={[
+        styles.button,
+        {
+          backgroundColor: getBackgroundColor(),
+          borderColor: getBorderColor(),
+          borderWidth: variant === 'secondary' ? 1 : 0,
+          borderRadius: radii.lg,
+        },
+        style,
+      ]}
       onPress={onPress}
       disabled={disabled || loading}
       activeOpacity={0.7}>
       {loading ? (
-        <ActivityIndicator
-          color={variant === 'primary' ? '#fff' : '#6B7280'}
-        />
+        <ActivityIndicator color={getTextColor()} />
       ) : (
-        <Text style={textStyles}>{title}</Text>
+        <Text
+          style={[
+            styles.text,
+            {color: getTextColor()},
+            textStyle,
+          ]}>
+          {title}
+        </Text>
       )}
     </TouchableOpacity>
   )
@@ -65,22 +94,10 @@ const styles = StyleSheet.create({
   button: {
     paddingVertical: 14,
     paddingHorizontal: 24,
-    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  primary: {backgroundColor: '#8B9DFE'},
-  secondary: {
-    backgroundColor: '#F3F4F6',
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
-  },
-  ghost: {backgroundColor: 'transparent'},
-  disabled: {opacity: 0.5},
   text: {fontSize: 16, fontWeight: '600'},
-  primaryText: {color: '#FFFFFF'},
-  secondaryText: {color: '#374151'},
-  ghostText: {color: '#8B9DFE'},
 })
 
 export default Button

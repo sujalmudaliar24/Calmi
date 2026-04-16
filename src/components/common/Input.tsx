@@ -7,6 +7,7 @@ import {
   ViewStyle,
   TextInputProps,
 } from 'react-native'
+import {useTheme} from '../../theme'
 
 interface InputProps extends TextInputProps {
   label?: string
@@ -21,15 +22,31 @@ const Input: React.FC<InputProps> = ({
   style,
   ...props
 }) => {
+  const {colors, borderRadius: radii} = useTheme()
+
   return (
     <View style={[styles.container, containerStyle]}>
-      {label && <Text style={styles.label}>{label}</Text>}
+      {label && (
+        <Text style={[styles.label, {color: colors.text}]}>{label}</Text>
+      )}
       <TextInput
-        style={[styles.input, error && styles.inputError, style]}
-        placeholderTextColor="#9CA3AF"
+        style={[
+          styles.input,
+          error && styles.inputError,
+          {
+            backgroundColor: colors.surfaceSecondary,
+            borderColor: error ? colors.error : colors.border,
+            color: colors.text,
+            borderRadius: radii.lg,
+          },
+          style,
+        ]}
+        placeholderTextColor={colors.placeholder}
         {...props}
       />
-      {error && <Text style={styles.error}>{error}</Text>}
+      {error && (
+        <Text style={[styles.error, {color: colors.error}]}>{error}</Text>
+      )}
     </View>
   )
 }
@@ -39,21 +56,16 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#374151',
     marginBottom: 6,
   },
   input: {
-    backgroundColor: '#F9FAFB',
     borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 12,
     fontSize: 16,
-    color: '#1F2937',
   },
-  inputError: {borderColor: '#EF4444'},
-  error: {fontSize: 12, color: '#EF4444', marginTop: 4},
+  inputError: {borderWidth: 2},
+  error: {fontSize: 12, marginTop: 4},
 })
 
 export default Input
