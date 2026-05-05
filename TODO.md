@@ -1,0 +1,1 @@
+# Fix HappyKoala Image Import Error\n\nStatus: Previous import fix applied but error persists (cache/module resolver).\n\n## Updated Steps:\n\n### 1. [x] Initial Hero.tsx require → import\n### 2. [x] Inline require in JSX to bypass resolver/cache\n### 3. [ ] Execute Metro cache reset\n### 4. [ ] Mark complete

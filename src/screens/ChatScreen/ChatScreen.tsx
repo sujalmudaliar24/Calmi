@@ -3,11 +3,11 @@
  *
  * Conversational interface with the AI wellness companion.
  * Features:
- * - Real-time chat with AI
- * - Sentiment-aware responses
- * - Mood detection from messages
+ * - NLP Cloud Chatbot API for AI responses
+ * - Sentiment analysis from user messages
+ * - Mood detection with visual feedback
  * - Suggested wellness actions
- * - Memory of past interactions
+ * - Vector icons (no emojis)
  */
 
 import {
@@ -19,79 +19,48 @@ import {
   FlatList,
   KeyboardAvoidingView,
   Platform,
-  Image,
 } from 'react-native'
 import React, { useState, useRef, useEffect } from 'react'
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons'
 import { useTheme } from '../../theme'
-import { sentimentService, JournalAnalysis, EmotionCategory } from '../../services/api/sentimentService'
+import { chatbotService, ChatMessage } from '../../services/api/chatbotService'
+import { EmotionCategory } from '../../services/api/sentimentService'
 
-// Message types
-export type MessageRole = 'user' | 'ai' | 'system'
-
-export interface ChatMessage {
-  id: string
-  role: MessageRole
-  content: string
-  timestamp: number
-  sentiment?: EmotionCategory
-  analysis?: JournalAnalysis
-  isTyping?: boolean
-}
-
-// AI personality prompts
+// AI personality
 const AI_PERSONA = {
-  name: 'Calmi AI',
+  name: 'Calmi',
   greeting: "Hi there! I'm Calmi, your wellness companion. How are you feeling today?",
-  style: 'warm, empathetic, supportive, non-judgmental',
-  boundaries: 'Not a medical professional, offers general wellness support',
 }
 
-// Mock AI responses based on sentiment
-const AI_RESPONSES: Record<string, string[]> = {
-  happy: [
-    "That's wonderful to hear! What's making you feel so good today?",
-    "I love that energy! Feel free to share what's bringing you joy.",
-    "Your happiness is contagious! What's going well?",
-  ],
-  calm: [
-    "That sense of peace is precious. Savor these calm moments.",
-    "I appreciate you sharing this peaceful state with me.",
-    "There's something special about inner calm. What's contributing to this?",
-  ],
-  anxious: [
-    "I hear you. Anxiety can feel overwhelming, but you're not alone.",
-    "Take a slow breath. Let's talk through what's worrying you.",
-    "It's okay to feel anxious. I'm here to listen and support you.",
-  ],
-  sad: [
-    "I'm sorry you're feeling this way. I'm here with you.",
-    "Sadness is a valid emotion. Take your time - I'm not going anywhere.",
-    "Thank you for sharing this with me. What's on your mind?",
-  ],
-  stressed: [
-    "Stress can really pile up. Let's take a moment to breathe together.",
-    "I understand things feel overwhelming. You're handling more than you realize.",
-    "Stress is tough, but you're stronger than it feels. What's weighing on you?",
-  ],
-  angry: [
-    "I can hear that frustration. It's okay to feel angry.",
-    "Your feelings are valid. Let's work through this together.",
-    "Anger is natural. What's causing these feelings?",
-  ],
-  neutral: [
-    "Thanks for checking in. How's your day going?",
-    "I'm here and ready to listen. What's on your mind?",
-    "Every moment is a chance to connect. How are you really?",
-  ],
-}
-
+// Wellness suggestions with vector icons
 const WELLNESS_SUGGESTIONS = [
-  { icon: 'weather-windy', text: 'Take a 2-minute breathing break', action: 'breathing' },
-  { icon: 'heart-outline', text: 'List 3 things you\'re grateful for', action: 'gratitude' },
-  { icon: 'book-outline', text: 'Write in your journal', action: 'journaling' },
+  { icon: 'weather-windy', text: 'Take a breathing break', action: 'breathing' },
+  { icon: 'heart-outline', text: 'Gratitude practice', action: 'gratitude' },
+  { icon: 'book-outline', text: 'Write in journal', action: 'journaling' },
   { icon: 'walk', text: 'Go for a short walk', action: 'movement' },
 ]
+
+// Emotion icon mapping
+const EMOTION_ICONS: Record<EmotionCategory, string> = {
+  happy: 'emoticon-happy-outline',
+  calm: 'meditation',
+  anxious: 'emoticon-confused-outline',
+  sad: 'emoticon-sad-outline',
+  stressed: 'lightning-bolt',
+  angry: 'emoticon-angry-outline',
+  neutral: 'emoticon-neutral-outline',
+}
+
+// Emotion color mapping
+const EMOTION_COLORS: Record<EmotionCategory, string> = {
+  happy: '#FFD166',
+  calm: '#7ECFBE',
+  anxious: '#FFB5A7',
+  sad: '#B8A9E8',
+  stressed: '#FF8A7A',
+  angry: '#FF7B7B',
+  neutral: '#A8A2B8',
+}
 
 interface ChatBubbleProps {
   message: ChatMessage
@@ -105,30 +74,19 @@ const ChatBubble: React.FC<ChatBubbleProps> = ({ message, colors, typography, fo
   const isAI = message.role === 'ai'
 
   return (
-    <View
-      style={[
-        styles.messageRow,
-        isUser ? styles.userMessageRow : styles.aiMessageRow,
-      ]}>
-      {/* AI Avatar */}
+    <View style={[styles.messageRow, isUser ? styles.userMessageRow : styles.aiMessageRow]}>
       {isAI && (
-        <View style={[styles.avatar, { backgroundColor: colors.primary }]}>
-          <Image
-            source={require('../../assets/images/happykoala.jpg')}
-            style={styles.avatarImage}
-          />
+        <View style={[styles.avatar, { backgroundColor: colors.primaryLight }]}>
+          <Icon name="leaf" size={20} color={colors.primary} />
         </View>
       )}
 
-      {/* Message Bubble */}
       <View
         style={[
           styles.messageBubble,
           isUser
             ? [styles.userBubble, { backgroundColor: colors.primary }]
-            : [styles.aiBubble, { backgroundColor: colors.surface }],
-          isAI && { borderTopLeftRadius: 4 },
-          isUser && { borderTopRightRadius: 4 },
+            : [styles.aiBubble, { backgroundColor: colors.surface, borderColor: colors.border }],
         ]}>
         {message.isTyping ? (
           <View style={styles.typingContainer}>
@@ -137,34 +95,20 @@ const ChatBubble: React.FC<ChatBubbleProps> = ({ message, colors, typography, fo
             <View style={[styles.typingDot, { backgroundColor: colors.textTertiary }]} />
           </View>
         ) : (
-          <Text
-            style={[
-              typography.body,
-              styles.messageText,
-              { color: isUser ? colors.textInverse : colors.text },
-            ]}>
-            {message.content}
-          </Text>
+          <>
+            <Text style={[typography.body, styles.messageText, { color: isUser ? colors.textInverse : colors.text }]}>
+              {message.content}
+            </Text>
+            <Text style={[typography.caption, styles.timestamp, { color: isUser ? colors.textInverse + '80' : colors.textTertiary }]}>
+              {formatTime(message.timestamp)}
+            </Text>
+          </>
         )}
-
-        {/* Timestamp */}
-        <Text
-          style={[
-            typography.caption,
-            styles.timestamp,
-            { color: isUser ? colors.textInverse + '80' : colors.textTertiary },
-          ]}>
-          {formatTime(message.timestamp)}
-        </Text>
       </View>
 
-      {/* User Indicator */}
       {isUser && (
         <View style={[styles.avatar, { backgroundColor: colors.secondary }]}>
-          <Image
-            source={require('../../assets/images/happykoala.jpg')}
-            style={styles.avatarImage}
-          />
+          <Icon name="account-outline" size={18} color={colors.textInverse} />
         </View>
       )}
     </View>
@@ -188,6 +132,20 @@ const SuggestionChip: React.FC<SuggestionChipProps> = ({ icon, text, onPress, co
   </TouchableOpacity>
 )
 
+interface MoodIndicatorProps {
+  emotion: EmotionCategory
+  colors: any
+}
+
+const MoodIndicator: React.FC<MoodIndicatorProps> = ({ emotion, colors }) => (
+  <View style={[styles.moodIndicator, { backgroundColor: colors.surfaceSecondary }]}>
+    <Icon name={EMOTION_ICONS[emotion]} size={16} color={EMOTION_COLORS[emotion]} />
+    <Text style={[styles.moodText, { color: colors.textSecondary }]}>
+      Feeling {emotion}
+    </Text>
+  </View>
+)
+
 interface Props {
   navigation?: any
   initialMessage?: string
@@ -198,14 +156,14 @@ const ChatScreen: React.FC<Props> = ({ navigation, initialMessage }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [inputText, setInputText] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [currentEmotion, setCurrentEmotion] = useState<EmotionCategory | null>(null)
   const flatListRef = useRef<FlatList>(null)
+  const inputRef = useRef<TextInput>(null)
 
-  // Initialize chat
   useEffect(() => {
     initializeChat()
   }, [])
 
-  // Handle initial message from navigation
   useEffect(() => {
     if (initialMessage) {
       handleSendMessage(initialMessage)
@@ -213,7 +171,7 @@ const ChatScreen: React.FC<Props> = ({ navigation, initialMessage }) => {
   }, [initialMessage])
 
   const initializeChat = async () => {
-    await sentimentService.initialize()
+    await chatbotService.initialize()
     setMessages([
       {
         id: '1',
@@ -227,11 +185,6 @@ const ChatScreen: React.FC<Props> = ({ navigation, initialMessage }) => {
   const formatTime = (timestamp: number): string => {
     const date = new Date(timestamp)
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-  }
-
-  const getRandomResponse = (sentiment: EmotionCategory | 'neutral'): string => {
-    const responses = AI_RESPONSES[sentiment] || AI_RESPONSES.neutral
-    return responses[Math.floor(Math.random() * responses.length)]
   }
 
   const handleSendMessage = async (text?: string) => {
@@ -249,15 +202,11 @@ const ChatScreen: React.FC<Props> = ({ navigation, initialMessage }) => {
     setInputText('')
     setIsLoading(true)
 
-    // Scroll to bottom
     setTimeout(() => {
       flatListRef.current?.scrollToEnd({ animated: true })
     }, 100)
 
     try {
-      // Analyze sentiment
-      const analysis = await sentimentService.analyzeJournalEntry(messageText)
-
       // Add typing indicator
       const typingMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
@@ -268,29 +217,26 @@ const ChatScreen: React.FC<Props> = ({ navigation, initialMessage }) => {
       }
       setMessages(prev => [...prev, typingMessage])
 
-      // Simulate AI thinking
-      await new Promise<void>(resolve => setTimeout(resolve, 800 + Math.random() * 800))
+      // Get AI response using NLP Cloud
+      const response = await chatbotService.sendMessage(
+        messageText,
+        (emotion) => setCurrentEmotion(emotion)
+      )
 
       // Remove typing indicator
       setMessages(prev => prev.filter(m => !m.isTyping))
 
-      // Get contextual response based on sentiment
-      const aiResponse = getRandomResponse(analysis.dominantEmotion)
-
       const aiMessage: ChatMessage = {
         id: (Date.now() + 2).toString(),
         role: 'ai',
-        content: aiResponse,
+        content: response,
         timestamp: Date.now(),
-        sentiment: analysis.dominantEmotion,
-        analysis,
+        sentiment: currentEmotion || undefined,
       }
 
       setMessages(prev => [...prev, aiMessage])
     } catch (error) {
       console.error('[ChatScreen] Error:', error)
-
-      // Remove typing indicator and add error message
       setMessages(prev => prev.filter(m => !m.isTyping))
       setMessages(prev => [
         ...prev,
@@ -337,6 +283,11 @@ const ChatScreen: React.FC<Props> = ({ navigation, initialMessage }) => {
     </View>
   )
 
+  const renderMoodIndicator = () => {
+    if (!currentEmotion) return null
+    return <MoodIndicator emotion={currentEmotion} colors={colors} />
+  }
+
   return (
     <KeyboardAvoidingView
       style={[styles.container, { backgroundColor: colors.background }]}
@@ -351,22 +302,25 @@ const ChatScreen: React.FC<Props> = ({ navigation, initialMessage }) => {
         </TouchableOpacity>
         <View style={styles.headerCenter}>
           <View style={[styles.headerAvatar, { backgroundColor: colors.primaryLight }]}>
-            <Image
-              source={require('../../assets/images/happykoala.jpg')}
-              style={styles.headerAvatarImage}
-            />
+            <Icon name="leaf" size={24} color={colors.primary} />
           </View>
           <View>
             <Text style={[typo.h4, { color: colors.text }]}>{AI_PERSONA.name}</Text>
-            <Text style={[typo.caption, { color: colors.textSecondary }]}>Online</Text>
+            <View style={styles.statusRow}>
+              <View style={[styles.statusDot, { backgroundColor: colors.success }]} />
+              <Text style={[typo.caption, { color: colors.textSecondary }]}>Online</Text>
+            </View>
           </View>
         </View>
         <TouchableOpacity
           style={styles.menuButton}
-          onPress={() => navigation?.navigate('Settings')}>
+          onPress={() => {}}>
           <Icon name="dots-vertical" size={24} color={colors.text} />
         </TouchableOpacity>
       </View>
+
+      {/* Mood Indicator */}
+      {renderMoodIndicator()}
 
       {/* Messages */}
       <FlatList
@@ -384,8 +338,9 @@ const ChatScreen: React.FC<Props> = ({ navigation, initialMessage }) => {
       <View style={[styles.inputContainer, { backgroundColor: colors.surface, borderTopColor: colors.border }]}>
         <View style={[styles.inputWrapper, { backgroundColor: colors.surfaceSecondary, borderRadius: radii.xl }]}>
           <TextInput
+            ref={inputRef}
             style={[styles.textInput, { color: colors.text }]}
-            placeholder="Message Calmi..."
+            placeholder="Share what's on your mind..."
             placeholderTextColor={colors.placeholder}
             value={inputText}
             onChangeText={setInputText}
@@ -393,15 +348,21 @@ const ChatScreen: React.FC<Props> = ({ navigation, initialMessage }) => {
             maxLength={500}
           />
           <TouchableOpacity
-            style={[styles.sendButton, { backgroundColor: inputText.trim() ? colors.primary : colors.disabled }]}
+            style={[
+              styles.sendButton,
+              { backgroundColor: inputText.trim() ? colors.primary : colors.disabled },
+            ]}
             onPress={() => handleSendMessage()}
             disabled={!inputText.trim() || isLoading}>
             <Icon name="send" size={20} color={colors.textInverse} />
           </TouchableOpacity>
         </View>
-        <Text style={[typo.caption, styles.disclaimer, { color: colors.textTertiary }]}>
-          Not a medical professional • AI companion
-        </Text>
+        <View style={styles.disclaimerRow}>
+          <Icon name="shield-outline" size={12} color={colors.textTertiary} />
+          <Text style={[typo.caption, styles.disclaimer, { color: colors.textTertiary }]}>
+            Not a medical professional
+          </Text>
+        </View>
       </View>
     </KeyboardAvoidingView>
   )
@@ -436,16 +397,33 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    overflow: 'hidden',
   },
-  headerAvatarImage: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  statusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
   menuButton: {
     padding: 8,
     marginRight: -8,
+  },
+  moodIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+  },
+  moodText: {
+    fontSize: 13,
+    fontWeight: '500',
+    textTransform: 'capitalize',
   },
   messagesList: {
     paddingHorizontal: 16,
@@ -469,12 +447,6 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    overflow: 'hidden',
-  },
-  avatarImage: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
   },
   messageBubble: {
     maxWidth: '75%',
@@ -493,7 +465,6 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 20,
     borderTopRightRadius: 20,
     borderWidth: 1,
-    borderColor: 'transparent',
   },
   messageText: {
     lineHeight: 22,
@@ -562,8 +533,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginLeft: 8,
   },
+  disclaimerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    marginTop: 8,
+  },
   disclaimer: {
     textAlign: 'center',
-    marginTop: 8,
   },
 })

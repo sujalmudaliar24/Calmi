@@ -3,6 +3,8 @@ import React from 'react'
 import {useTheme} from '../../theme'
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons'
 
+
+
 interface QuickAction {
   id: string
   icon: string
@@ -13,8 +15,9 @@ interface QuickAction {
 }
 
 interface MoodEntry {
-  emoji: string
+  icon: string
   label: string
+  color: string
 }
 
 const QuickActions: React.FC<{actions: QuickAction[]; colors: any}> = ({
@@ -31,9 +34,6 @@ const QuickActions: React.FC<{actions: QuickAction[]; colors: any}> = ({
         style={[styles.quickActionCard, {backgroundColor: colors.surface}]}
         onPress={action.onPress}
         activeOpacity={0.7}>
-        <View style={[styles.quickActionIcon, {backgroundColor: action.color + '20'}]}>
-          <Icon name={action.icon} size={24} color={action.color} />
-        </View>
         <Text style={[styles.quickActionTitle, {color: colors.text}]}>
           {action.title}
         </Text>
@@ -45,9 +45,10 @@ const QuickActions: React.FC<{actions: QuickAction[]; colors: any}> = ({
   </ScrollView>
 )
 
-const MoodCheckIn: React.FC<{mood: MoodEntry; colors: any}> = ({mood, colors}) => (
+const MoodCheckIn: React.FC<{mood: MoodEntry; colors: any; navigation?: any}> = ({mood, colors, navigation}) => (
   <TouchableOpacity
     style={[styles.moodCard, {backgroundColor: colors.surface}]}
+    onPress={() => navigation?.navigate('EmotionLoggerScreen')}
     activeOpacity={0.8}>
     <View style={styles.moodHeader}>
       <Text style={[styles.moodLabel, {color: colors.textSecondary}]}>
@@ -56,7 +57,6 @@ const MoodCheckIn: React.FC<{mood: MoodEntry; colors: any}> = ({mood, colors}) =
       <Icon name="chevron-right" size={20} color={colors.textSecondary} />
     </View>
     <View style={styles.moodContent}>
-      <Text style={styles.moodEmoji}>{mood.emoji}</Text>
       <Text style={[styles.moodText, {color: colors.text}]}>{mood.label}</Text>
     </View>
     <Text style={[styles.moodHint, {color: colors.textTertiary}]}>
@@ -67,7 +67,6 @@ const MoodCheckIn: React.FC<{mood: MoodEntry; colors: any}> = ({mood, colors}) =
 
 const WellnessTip: React.FC<{tip: string; colors: any}> = ({tip, colors}) => (
   <View style={[styles.tipCard, {backgroundColor: colors.secondaryLight + '40'}]}>
-    <Icon name="lightbulb-outline" size={20} color={colors.secondary} />
     <Text style={[styles.tipText, {color: colors.text}]}>{tip}</Text>
   </View>
 )
@@ -76,16 +75,18 @@ interface Props {
   navigation?: any
   userName?: string
   currentMood?: MoodEntry
+  streak?: number
   onQuickAction?: (action: string) => void
 }
 
 const Hero: React.FC<Props> = ({
   navigation,
   userName = 'Friend',
-  currentMood = {emoji: '😊', label: 'Calm'},
+  currentMood = { icon: 'meditation', label: 'Calm', color: '#7ECFBE' },
+  streak = 0,
   onQuickAction,
 }) => {
-  const {colors, borderRadius: radii, typography: typo} = useTheme()
+  const {colors, typography: typo} = useTheme()
 
   const quickActions: QuickAction[] = [
     {
@@ -142,7 +143,7 @@ const Hero: React.FC<Props> = ({
       </View>
 
       {/* Mood Check-In */}
-      <MoodCheckIn mood={currentMood} colors={colors} />
+      <MoodCheckIn mood={currentMood} colors={colors} navigation={navigation} />
 
       {/* AI Companion */}
       <TouchableOpacity
@@ -151,10 +152,7 @@ const Hero: React.FC<Props> = ({
         activeOpacity={0.8}>
         <View style={styles.chatContent}>
           <View style={[styles.chatAvatar, {backgroundColor: colors.primary}]}>
-            <Image
-              source={require('../../assets/images/happykoala.jpg')}
-              style={styles.chatAvatarImage}
-            />
+            {/* <Image source={require('./assets/images/happykoala.jpg')} style={styles.chatAvatarImage} /> */}
           </View>
           <View style={styles.chatTextContainer}>
             <Text style={[styles.chatTitle, {color: colors.text}]}>
@@ -169,7 +167,7 @@ const Hero: React.FC<Props> = ({
       </TouchableOpacity>
 
       {/* Wellness Tip */}
-      <WellnessTip tip={wellnessTip} colors={colors} />
+  <WellnessTip tip={wellnessTip} colors={colors} />
 
       {/* Quick Actions */}
       <View style={styles.sectionHeader}>
@@ -181,7 +179,10 @@ const Hero: React.FC<Props> = ({
       <QuickActions actions={quickActions} colors={colors} />
 
       {/* Journal Preview */}
-      <View style={[styles.journalCard, {backgroundColor: colors.surface}]}>
+      <TouchableOpacity
+        style={[styles.journalCard, {backgroundColor: colors.surface}]}
+        onPress={() => navigation?.navigate('JournalScreen')}
+        activeOpacity={0.8}>
         <View style={styles.journalHeader}>
           <Text style={[typo.h4, {color: colors.text}]}>Recent Journal</Text>
           <Icon name="book-outline" size={24} color={colors.secondary} />
@@ -192,33 +193,30 @@ const Hero: React.FC<Props> = ({
           Today I felt grateful for the small moments - a warm cup of tea and a
           quiet morning...
         </Text>
-        <TouchableOpacity style={styles.journalFooter}>
+        <View style={styles.journalFooter}>
           <Text style={[typo.label, {color: colors.primary}]}>
             Continue reading
           </Text>
           <Icon name="chevron-right" size={18} color={colors.primary} />
-        </TouchableOpacity>
-      </View>
+        </View>
+      </TouchableOpacity>
 
       {/* Stats Preview */}
       <View style={styles.statsContainer}>
         <View style={[styles.statCard, {backgroundColor: colors.surface}]}>
-          <Icon name="chart-line" size={24} color={colors.accent} />
-          <Text style={[styles.statValue, {color: colors.text}]}>7</Text>
+        <Text style={[styles.statValue, {color: colors.text}]}>{streak}</Text>
           <Text style={[styles.statLabel, {color: colors.textSecondary}]}>
             Day streak
           </Text>
         </View>
         <View style={[styles.statCard, {backgroundColor: colors.surface}]}>
-          <Icon name="emoticon-outline" size={24} color={colors.moodHappy} />
-          <Text style={[styles.statValue, {color: colors.text}]}>Good</Text>
+        <Text style={[styles.statValue, {color: colors.text}]}>Good</Text>
           <Text style={[styles.statLabel, {color: colors.textSecondary}]}>
             This week
           </Text>
         </View>
         <View style={[styles.statCard, {backgroundColor: colors.surface}]}>
-          <Icon name="pencil-outline" size={24} color={colors.secondary} />
-          <Text style={[styles.statValue, {color: colors.text}]}>12</Text>
+        <Text style={[styles.statValue, {color: colors.text}]}>12</Text>
           <Text style={[styles.statLabel, {color: colors.textSecondary}]}>
             Entries
           </Text>
@@ -273,8 +271,12 @@ const styles = StyleSheet.create({
     gap: 12,
     marginBottom: 8,
   },
-  moodEmoji: {
-    fontSize: 32,
+  moodIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   moodText: {
     fontSize: 20,

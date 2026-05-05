@@ -1,12 +1,14 @@
 /**
  * Sentiment Analysis Service for Calmi
  *
- * Uses transformer.js for on-device inference (privacy-first approach)
- * Falls back to API calls if local processing isn't available
+ * Uses NLP Cloud Sentiment API for emotion detection.
  *
  * Emotion categories aligned with Calmi's mood tracking:
  * - happy, calm, anxious, sad, stressed, angry, neutral
  */
+
+import { nlpCloudService } from './nlpCloudService'
+import { config } from '../../config'
 
 export type EmotionCategory =
   | 'happy'
@@ -42,32 +44,6 @@ export interface WellnessAction {
   title: string
   description: string
   durationMinutes: number
-}
-
-// Mapping from model emotions to Calmi categories
-const EMOTION_MAPPING: Record<string, EmotionCategory> = {
-  joy: 'happy',
-  happy: 'happy',
-  sadness: 'sad',
-  sad: 'sad',
-  anger: 'angry',
-  angry: 'angry',
-  fear: 'anxious',
-  anxious: 'anxious',
-  surprise: 'calm',
-  neutral: 'neutral',
-  calm: 'calm',
-  satisfaction: 'calm',
-  relief: 'calm',
-}
-
-// Model config - currently using mock for demo
-// Replace with actual transformer.js model in production
-const MODEL_CONFIG = {
-  useLocalModel: true,
-  modelName: 'Xenova/transformers', // Will be loaded via transformer.js
-  quantize: true, // Reduce memory footprint
-  batchSize: 4,
 }
 
 // Action suggestions based on emotional state
@@ -152,12 +128,11 @@ const WELLNESS_ACTIONS: Record<EmotionCategory, WellnessAction[]> = {
 }
 
 /**
- * Calculate intensity level based on score distribution
+ * Calculate intensity level based on score
  */
-function calculateIntensity(scores: EmotionScore[]): 'low' | 'moderate' | 'high' {
-  const topScore = Math.max(...scores.map(s => s.score))
-  if (topScore < 0.4) return 'low'
-  if (topScore < 0.7) return 'moderate'
+function calculateIntensity(score: number): 'low' | 'moderate' | 'high' {
+  if (score < 0.4) return 'low'
+  if (score < 0.7) return 'moderate'
   return 'high'
 }
 
@@ -179,23 +154,18 @@ function generateToneHints(scores: EmotionScore[]): string[] {
   }
 
   if (topEmotions[0]?.emotion === 'sad') {
-    hints.push('I hear you. It\'s okay to feel this way.')
+    hints.push("I hear you. It's okay to feel this way.")
   }
 
   return hints
 }
 
 /**
- * Mock analyzer for demo - simulates sentiment analysis
- * Replace with actual transformer.js inference in production
+ * Fallback mock analysis when NLP Cloud is not available
  */
 async function mockAnalyze(text: string): Promise<SentimentResult> {
-  // Simulate processing delay
-  await new Promise(resolve => setTimeout(resolve, 100))
-
   const startTime = Date.now()
 
-  // Simple keyword-based mock analysis
   const lowerText = text.toLowerCase()
   const emotionKeywords: Record<EmotionCategory, string[]> = {
     happy: ['happy', 'joy', 'great', 'wonderful', 'excited', 'love', 'grateful', 'amazing', 'good'],
@@ -219,36 +189,31 @@ async function mockAnalyze(text: string): Promise<SentimentResult> {
     })
   }
 
-  // Normalize scores
   if (totalMatches > 0) {
     scores.forEach(s => {
       s.score = s.score / totalMatches
     })
   } else {
-    // Default to neutral
     scores.find(s => s.emotion === 'neutral')!.score = 0.8
   }
 
-  // Sort by score descending
   scores.sort((a, b) => b.score - a.score)
 
   return {
     dominantEmotion: scores[0].emotion,
     scores,
-    intensity: calculateIntensity(scores),
+    intensity: calculateIntensity(scores[0].score),
     timestamp: Date.now(),
     processingTime: Date.now() - startTime,
   }
 }
 
 /**
- * Sentiment Analysis Service
+ * Sentiment Analysis Service using NLP Cloud
  */
-export class SentimentAnalysisService {
+class SentimentAnalysisService {
   private static instance: SentimentAnalysisService
-  private model: any = null
   private isInitialized: boolean = false
-  private useLocalModel: boolean = MODEL_CONFIG.useLocalModel
 
   private constructor() {}
 
@@ -259,49 +224,42 @@ export class SentimentAnalysisService {
     return SentimentAnalysisService.instance
   }
 
-  /**
-   * Initialize the sentiment analysis model
-   * In production, this loads the transformer.js model
-   */
   async initialize(): Promise<void> {
     if (this.isInitialized) return
 
-    if (this.useLocalModel) {
-      try {
-        // TODO: Load with transformer.js
-        // const { pipeline } = await import('@huggingface/transformers')
-        // this.model = await pipeline('sentiment-analysis', MODEL_CONFIG.modelName)
-        console.log('[SentimentService] Using local model (mock for demo)')
-      } catch (error) {
-        console.warn('[SentimentService] Failed to load local model, using fallback')
-        this.useLocalModel = false
-      }
+    if (config.features.sentimentEnabled && config.nlpCloudApiKey) {
+      nlpCloudService.initialize(config.nlpCloudApiKey)
     }
 
     this.isInitialized = true
   }
 
-  /**
-   * Analyze text sentiment
-   */
   async analyze(text: string): Promise<SentimentResult> {
     if (!this.isInitialized) {
       await this.initialize()
     }
 
-    if (this.useLocalModel && this.model) {
-      // TODO: Use actual model inference
-      // const result = await this.model(text)
-      // return this.mapModelResult(result)
+    if (!config.features.sentimentEnabled || !nlpCloudService.isConfigured()) {
       return mockAnalyze(text)
     }
 
-    return mockAnalyze(text)
+    try {
+      const result = await nlpCloudService.analyzeSentiment(text)
+      const emotion = nlpCloudService.mapToEmotionCategory(result.label)
+
+      return {
+        dominantEmotion: emotion as EmotionCategory,
+        scores: [{ emotion: emotion as EmotionCategory, score: result.score }],
+        intensity: calculateIntensity(result.score),
+        timestamp: result.timestamp,
+        processingTime: 0,
+      }
+    } catch (error) {
+      console.warn('[SentimentService] NLP Cloud error, using fallback:', error)
+      return mockAnalyze(text)
+    }
   }
 
-  /**
-   * Analyze journal entry with additional Calmi-specific insights
-   */
   async analyzeJournalEntry(text: string): Promise<JournalAnalysis> {
     const sentiment = await this.analyze(text)
     const suggestedActions = WELLNESS_ACTIONS[sentiment.dominantEmotion] || WELLNESS_ACTIONS.neutral
@@ -314,9 +272,6 @@ export class SentimentAnalysisService {
     }
   }
 
-  /**
-   * Generate a human-readable summary
-   */
   private generateSummary(sentiment: SentimentResult): string {
     const topEmotion = sentiment.dominantEmotion
     const intensity = sentiment.intensity
@@ -324,39 +279,39 @@ export class SentimentAnalysisService {
 
     const summaryTemplates: Record<EmotionCategory, Record<string, string>> = {
       happy: {
-        low: 'You\'re feeling a subtle positive mood today.',
-        moderate: 'You seem to be in a good mood!',
-        high: 'You\'re radiating happiness!',
+        low: "You're feeling a subtle positive mood today.",
+        moderate: "You seem to be in a good mood!",
+        high: "You're radiating happiness!",
       },
       calm: {
-        low: 'You\'re feeling a bit relaxed.',
-        moderate: 'You seem peaceful today.',
-        high: 'Deep calm is evident in your words.',
+        low: "You're feeling a bit relaxed.",
+        moderate: "You seem peaceful today.",
+        high: "Deep calm is evident in your words.",
       },
       anxious: {
-        low: 'There\'s a hint of worry in your text.',
-        moderate: 'Some anxiety is showing through.',
-        high: 'Your text reveals significant anxiety.',
+        low: "There's a hint of worry in your text.",
+        moderate: "Some anxiety is showing through.",
+        high: "Your text reveals significant anxiety.",
       },
       sad: {
-        low: 'A hint of sadness is present.',
-        moderate: 'You seem to be feeling down.',
-        high: 'I hear deep sadness in your words.',
+        low: "A hint of sadness is present.",
+        moderate: "You seem to be feeling down.",
+        high: "I hear deep sadness in your words.",
       },
       stressed: {
-        low: 'Minor stress signals detected.',
-        moderate: 'Stress seems present in your life.',
-        high: 'High stress levels are showing.',
+        low: "Minor stress signals detected.",
+        moderate: "Stress seems present in your life.",
+        high: "High stress levels are showing.",
       },
       angry: {
-        low: 'A hint of frustration.',
-        moderate: 'Some anger is present.',
-        high: 'Strong anger detected.',
+        low: "A hint of frustration.",
+        moderate: "Some anger is present.",
+        high: "Strong anger detected.",
       },
       neutral: {
-        low: 'Your mood appears balanced.',
-        moderate: 'You\'re in a neutral state.',
-        high: 'Your tone is very neutral.',
+        low: "Your mood appears balanced.",
+        moderate: "You're in a neutral state.",
+        high: "Your tone is very neutral.",
       },
     }
 
@@ -364,9 +319,6 @@ export class SentimentAnalysisService {
     return `${template} (${confidence}% confidence)`
   }
 
-  /**
-   * Batch analyze multiple texts
-   */
   async batchAnalyze(texts: string[]): Promise<SentimentResult[]> {
     const results: SentimentResult[] = []
     for (const text of texts) {
@@ -375,23 +327,14 @@ export class SentimentAnalysisService {
     return results
   }
 
-  /**
-   * Get available wellness actions for an emotion
-   */
   getActionsForEmotion(emotion: EmotionCategory): WellnessAction[] {
     return WELLNESS_ACTIONS[emotion] || WELLNESS_ACTIONS.neutral
   }
 
-  /**
-   * Check if model is ready
-   */
   isReady(): boolean {
     return this.isInitialized
   }
 }
 
-// Export singleton instance
 export const sentimentService = SentimentAnalysisService.getInstance()
-
-// Export service class for testing
 export { SentimentAnalysisService }

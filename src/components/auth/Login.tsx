@@ -167,10 +167,7 @@ const Login: React.FC<{ navigation: any }> = ({ navigation }) => {
         {/* Header with Koala */}
         <View style={styles.headerContainer}>
           <View style={styles.logoContainer}>
-            <Image
-              source={require('../../assets/images/happykoala.jpg')}
-              style={styles.logoImage}
-            />
+          <Icon name="emoticon-happy-outline" size={100} color={colors.primary} />
           </View>
           <Text style={[typo.h1, styles.headerText, { color: colors.primary }]}>
             Welcome to Calmi
@@ -187,26 +184,11 @@ const Login: React.FC<{ navigation: any }> = ({ navigation }) => {
 
         {/* Koala Mood Strip */}
         <View style={styles.koalaStrip}>
-          <Image
-            source={require('../../assets/images/sadKoala.jpg')}
-            style={styles.stripImage}
-          />
-          <Image
-            source={require('../../assets/images/happykoala.jpg')}
-            style={[styles.stripImage, styles.mainStripImage]}
-          />
-          <Image
-            source={require('../../assets/images/anxiousKoala.jpg')}
-            style={styles.stripImage}
-          />
-          <Image
-            source={require('../../assets/images/angryKoala.jpg')}
-            style={styles.stripImage}
-          />
-          <Image
-            source={require('../../assets/images/annoyedKoala.jpg')}
-            style={styles.stripImage}
-          />
+          <Icon name="emoticon-sad-outline" size={48} color="#B8A9E8" />
+          <Icon name="emoticon-happy-outline" size={60} color="#FFD166" />
+          <Icon name="emoticon-confused-outline" size={48} color="#FFB5A7" />
+          <Icon name="emoticon-angry-outline" size={48} color="#FF7B7B" />
+          <Icon name="emoticon-pout-outline" size={48} color="#FF8A7A" />
         </View>
 
         {/* Mode Toggle */}
