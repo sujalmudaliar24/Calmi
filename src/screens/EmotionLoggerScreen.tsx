@@ -1,8 +1,4 @@
-/**
- * Emotion Logger Screen for Calmi
- * Sticky emotion tags with koala images and descriptor popups.
- */
-
+import React, { useState } from 'react'
 import {
   StyleSheet,
   Text,
@@ -15,26 +11,25 @@ import {
   Animated,
   FlatList,
 } from 'react-native'
-import React, { useState } from 'react'
 import HapticFeedback from 'react-native-haptic-feedback'
-import { useTheme } from '../theme/ThemeContext'
+import { useTheme } from '../theme'
 import { useEmotion } from '../context/EmotionContext'
 import { EmotionTag, EMOTION_CONFIG } from '../types/emotion'
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window')
+const { width: SCREEN_WIDTH } = Dimensions.get('window')
 
 const EmotionLoggerScreen: React.FC<{ navigation?: any }> = ({ navigation }) => {
-  const { colors, typography: typo } = useTheme()
-  const { logEmotion } = useEmotion()
+  const { colors, typography: typo, borderRadius: radii } = useTheme()
+  const { logEmotion, recentMoods } = useEmotion()
   const [selectedEmotion, setSelectedEmotion] = useState<EmotionTag | null>(null)
-  const [descriptorsVisible, setDescriptorsVisible] = useState(false)
+  const [selectedSubEmotion, setSelectedSubEmotion] = useState<string | null>(null)
+  const [modalVisible, setModalVisible] = useState(false)
   const [scaleAnim] = useState(new Animated.Value(1))
 
-  const handleTagPress = async (emotion: EmotionTag) => {
+  const handleTagPress = (emotion: EmotionTag) => {
     HapticFeedback.trigger('impactLight')
     setSelectedEmotion(emotion)
-    
-    // Animate
+
     Animated.sequence([
       Animated.timing(scaleAnim, {
         toValue: 1.2,
@@ -48,19 +43,26 @@ const EmotionLoggerScreen: React.FC<{ navigation?: any }> = ({ navigation }) => 
       }),
     ]).start()
 
-    // Log mood
-    await logEmotion(emotion, EMOTION_CONFIG[emotion as EmotionTag].descriptors[0]!)
-
-    // Show descriptors
-    setDescriptorsVisible(true)
+    setModalVisible(true)
   }
 
-  const closeDescriptors = () => {
-    setDescriptorsVisible(false)
+  const handleSubEmotionPress = async (subEmotion: string) => {
+    HapticFeedback.trigger('impactMedium')
+    setSelectedSubEmotion(subEmotion)
+
+    // Log the final combined mood
+    await logEmotion(selectedEmotion!, subEmotion)
+
+    // Close modal with a slight delay for feedback
+    setTimeout(() => {
+      setModalVisible(false)
+      setSelectedEmotion(null)
+      setSelectedSubEmotion(null)
+    }, 300)
   }
 
   const renderStickyTag = (emotion: EmotionTag) => {
-    const config = EMOTION_CONFIG[emotion as EmotionTag]
+    const config = EMOTION_CONFIG[emotion]
     const isSelected = selectedEmotion === emotion
 
     return (
@@ -72,13 +74,14 @@ const EmotionLoggerScreen: React.FC<{ navigation?: any }> = ({ navigation }) => 
             backgroundColor: config.color + '20',
             borderColor: config.color,
             shadowColor: config.color,
+            borderRadius: radii.lg,
           },
           isSelected && styles.stickyTagSelected,
         ]}
         onPress={() => handleTagPress(emotion)}
         activeOpacity={0.8}>
-          <Image source={config.koalaImage} style={styles.koalaImage} />
-          <Text style={[styles.tagLabel, { color: config.color }]}>
+        <Image source={config.koalaImage} style={styles.koalaImage} />
+        <Text style={[styles.tagLabel, { color: config.color }]}>
           {config.label}
         </Text>
       </TouchableOpacity>
@@ -88,68 +91,77 @@ const EmotionLoggerScreen: React.FC<{ navigation?: any }> = ({ navigation }) => 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity 
+      <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
+        <TouchableOpacity
           style={styles.backButton}
           onPress={() => navigation?.goBack()}>
-          <Text style={[typo.h3, { color: colors.text }]}>Mood Tags</Text>
+          <Text style={[typo.h3, { color: colors.text }]}>Mood Log</Text>
         </TouchableOpacity>
       </View>
 
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
         <Text style={[typo.body, styles.prompt, { color: colors.textSecondary }]}>
-          Tap a koala to log your current mood
+          How are you feeling right now?
         </Text>
 
-        {/* Sticky Tags Grid */}
         <View style={styles.tagsGrid}>
           {(['happy', 'sad', 'angry', 'anxious', 'calm'] as EmotionTag[]).map(renderStickyTag)}
         </View>
 
-        {/* Recent Moods */}
-        <View style={[styles.section, { backgroundColor: colors.surface }]}>
-          <Text style={[typo.h4, { color: colors.text, marginBottom: 16 }]}>Recent</Text>
+        <View style={[styles.section, { backgroundColor: colors.surface, borderRadius: radii.lg }]}>
+          <Text style={[typo.h4, { color: colors.text, marginBottom: 16 }]}>Recent Moods</Text>
           <FlatList
-            data={[]}
+            data={recentMoods}
             renderItem={({ item }) => (
-              <View style={styles.recentItem}>
-                <Text style={styles.recentTime}>2min ago</Text>
-                <Text style={styles.recentMood}>Happy • joyful</Text>
+              <View style={[styles.recentItem, { backgroundColor: colors.surfaceSecondary, borderRadius: radii.sm }]}>
+                <Text style={[styles.recentTime, { color: colors.textTertiary }]}>
+                  {new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </Text>
+                <Text style={[styles.recentMood, { color: colors.text }]}>
+                  {item.emotion} • {item.subEmotion}
+                </Text>
               </View>
             )}
-            keyExtractor={(item, index) => index.toString()}
+            keyExtractor={(item) => item.timestamp.toString()}
             showsHorizontalScrollIndicator={false}
             horizontal
           />
         </View>
       </ScrollView>
 
-      {/* Descriptors Modal */}
       <Modal
-        visible={descriptorsVisible}
+        visible={modalVisible}
         transparent
-        animationType="fade"
-        onRequestClose={closeDescriptors}>
+        animationType="slide"
+        onRequestClose={() => setModalVisible(false)}>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, { backgroundColor: colors.surface, borderRadius: radii.xl }]}>
             <Text style={[typo.h4, { color: colors.text, marginBottom: 16 }]}>
-              How {selectedEmotion ? EMOTION_CONFIG[selectedEmotion as EmotionTag].label : ''} feels:
+              Which one describes it best?
             </Text>
-            <FlatList
-              data={selectedEmotion ? EMOTION_CONFIG[selectedEmotion as EmotionTag].descriptors : []}
-              renderItem={({ item }: { item: string }) => (
-                <TouchableOpacity style={styles.descriptorChip}>
-                  <Text style={[typo.body, { color: colors.textSecondary }]}>
-                    {item}
+            <View style={styles.descriptorGrid}>
+              {selectedEmotion ? EMOTION_CONFIG[selectedEmotion].descriptors.map((desc) => (
+                <TouchableOpacity
+                  key={desc}
+                  style={[
+                    styles.descriptorChip,
+                    {
+                      backgroundColor: selectedSubEmotion === desc ? colors.primaryLight : colors.surfaceSecondary,
+                      borderColor: selectedSubHEmotion === desc ? colors.primary : 'transparent',
+                      borderRadius: radii.md,
+                    }
+                  ]}
+                  onPress={() => handleSubEmotionPress(desc)}>
+                  <Text style={[typo.body, { color: selectedSubEmotion === desc ? colors.primaryDark : colors.text }]}>
+                    {desc}
                   </Text>
                 </TouchableOpacity>
-              )}
-              keyExtractor={item => item}
-              numColumns={2}
-              columnWrapperStyle={styles.descriptorRow}
-            />
-            <TouchableOpacity style={[styles.modalButton, { backgroundColor: colors.primary }]} onPress={closeDescriptors}>
-              <Text style={[typo.button, { color: colors.textInverse }]}>Done</Text>
+              )) : []}
+            </View>
+            <TouchableOpacity
+              style={[styles.modalButton, { backgroundColor: colors.primary, borderRadius: radii.md }]}
+              onPress={() => setModalVisible(false)}>
+              <Text style={[typo.button, { color: colors.textInverse }]}>Cancel</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -165,7 +177,6 @@ const styles = StyleSheet.create({
   header: {
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#eee',
   },
   backButton: {
     flexDirection: 'row',
@@ -201,11 +212,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 8,
-    borderRadius: 16,
   },
   stickyTagSelected: {
-    borderWidth: 3,
-    shadowOpacity: 0.5,
+    borderWidth: 4,
+    transform: [{ scale: 1.05 }],
   },
   koalaImage: {
     width: 60,
@@ -220,55 +230,49 @@ const styles = StyleSheet.create({
   },
   section: {
     padding: 20,
-    borderRadius: 16,
     marginTop: 20,
+    width: '100%',
   },
   recentItem: {
     padding: 12,
-    borderRadius: 12,
     marginRight: 12,
-    backgroundColor: '#f8f9fa',
   },
   recentTime: {
     fontSize: 11,
-    color: '#6c757d',
   },
   recentMood: {
     fontWeight: '600',
-    color: '#212529',
     marginTop: 2,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: 'white',
     padding: 24,
-    borderRadius: 20,
-    width: '85%',
-    maxHeight: '70%',
+    width: '100%',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: '60%',
   },
-  descriptorRow: {
-    justifyContent: 'space-between',
+  descriptorGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginBottom: 24,
   },
   descriptorChip: {
-    flex: 1,
-    backgroundColor: '#f8f9fa',
-    padding: 12,
-    borderRadius: 12,
-    margin: 4,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderWidth: 1,
     alignItems: 'center',
+    minWidth: '30%',
   },
   modalButton: {
-    marginTop: 20,
     padding: 16,
-    borderRadius: 12,
     alignItems: 'center',
   },
 })
 
 export default EmotionLoggerScreen
-

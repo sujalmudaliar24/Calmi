@@ -48,7 +48,7 @@ const QuickActions: React.FC<{actions: QuickAction[]; colors: any}> = ({
 const MoodCheckIn: React.FC<{mood: MoodEntry; colors: any; navigation?: any}> = ({mood, colors, navigation}) => (
   <TouchableOpacity
     style={[styles.moodCard, {backgroundColor: colors.surface}]}
-    onPress={() => navigation?.navigate('EmotionLoggerScreen')}
+    onPress={() => navigation?.navigate('Log')}
     activeOpacity={0.8}>
     <View style={styles.moodHeader}>
       <Text style={[styles.moodLabel, {color: colors.textSecondary}]}>
@@ -119,7 +119,7 @@ const Hero: React.FC<Props> = ({
     'Taking short breaks throughout the day can reduce stress by up to 40%.'
 
   const handleChatPress = () => {
-    navigation?.navigate('ChatScreen')
+    navigation?.navigate('Chat')
   }
 
   return (
@@ -181,7 +181,7 @@ const Hero: React.FC<Props> = ({
       {/* Journal Preview */}
       <TouchableOpacity
         style={[styles.journalCard, {backgroundColor: colors.surface}]}
-        onPress={() => navigation?.navigate('JournalScreen')}
+        onPress={() => navigation?.navigate('Journal')}
         activeOpacity={0.8}>
         <View style={styles.journalHeader}>
           <Text style={[typo.h4, {color: colors.text}]}>Recent Journal</Text>

@@ -1,0 +1,40 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String   @id @default(uuid())
+  email         String   @unique
+  passwordHash  String
+  fullName      String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  moodLogs      MoodLog[]
+  journalEntries JournalEntry[]
+}
+
+model MoodLog {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  emotion     String
+  subEmotion  String
+  timestamp   DateTime @default(now())
+  note        String?
+  createdAt   DateTime @default(now())
+}
+
+model JournalEntry {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  content   String   @db.Text
+  moodTag   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

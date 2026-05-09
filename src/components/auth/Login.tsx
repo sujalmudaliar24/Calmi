@@ -10,6 +10,7 @@ import {
   ScrollView,
 } from 'react-native'
 import React, { useState } from 'react'
+import { useAuth } from '../../navigation/AppNavigator'
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons'
 import { useTheme } from '../../theme'
 
@@ -24,6 +25,7 @@ interface FormErrors {
 
 const Login: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { colors, borderRadius: radii, typography: typo } = useTheme()
+  const { signIn } = useAuth()
 
   const [mode, setMode] = useState<AuthMode>('login')
   const [email, setEmail] = useState('')
@@ -78,8 +80,8 @@ const Login: React.FC<{ navigation: any }> = ({ navigation }) => {
       // Simulate API call - replace with actual auth logic
       await new Promise<void>(resolve => setTimeout(resolve, 1500))
 
-      // Navigate to Home on success
-      navigation.navigate('HomeScreen')
+      // Update auth state with user details to trigger automatic navigation to MainTabNavigator
+      signIn({ name, email })
     } catch (error) {
       setErrors({ email: 'Invalid credentials. Please try again.' })
     } finally {

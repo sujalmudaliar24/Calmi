@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useMemo } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import HapticFeedback from 'react-native-haptic-feedback';
 
@@ -63,7 +63,7 @@ export const EmotionProvider: React.FC<{ children: ReactNode }> = ({ children })
       const moods: LoggedEmotion[] = stored ? JSON.parse(stored) : [];
       moods.push(newMood);
       await AsyncStorage.setItem('calmi_emotions', JSON.stringify(moods));
-      
+
       setCurrentMood(newMood);
       setRecentMoods(moods.slice(-5));
     } catch (error) {
@@ -71,18 +71,23 @@ export const EmotionProvider: React.FC<{ children: ReactNode }> = ({ children })
     }
   };
 
-  const calculateStreak = () => {
-    const today = new Date().toDateString()
-    const recent = recentMoods.filter(mood => new Date(mood.timestamp).toDateString() === today)
-    return recent.length
-  }
+  const streak = useMemo(() => {
+    const today = new Date().toDateString();
+    const recent = recentMoods.filter(mood => new Date(mood.timestamp).toDateString() === today);
+    return recent.length;
+  }, [recentMoods]);
 
-  const streak = calculateStreak()
+  const value = useMemo(() => ({
+    currentMood,
+    streak,
+    logEmotion,
+    recentMoods,
+    loading
+  }), [currentMood, streak, recentMoods, loading]);
 
   return (
-    <EmotionContext.Provider value={{ currentMood, streak, logEmotion, recentMoods, loading }}>
+    <EmotionContext.Provider value={value}>
       {children}
     </EmotionContext.Provider>
   );
 };
-
